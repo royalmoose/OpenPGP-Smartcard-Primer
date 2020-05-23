@@ -1,20 +1,18 @@
 # FDE using OpenPGP Smartcard
 
+How does this work?  
 Instead of using a passphrase on boot, we can use a LUKS key file encrypted with GPG to unlock the disk partition on your computer.
 
 **General setup process:**  
-1. Create a dedicated GPG keyring environment.  
-  *This keyring is separate from the normal user keyring. Instead this separate keyring will be used on boot to decrypt the LUKS partition.*  
-2. Generate a key file and assign it to a slot in your encrypted LUKS partition.  
-  *This will be the key we use to unlock the partition on boot.*
-3. Encrypt the key file with your GPG private key.  
-  *This encrypted LUKS key will be decrypted using the smartcard on boot and used to unlock the partition. The unencrypted key will be shredded.*
+1. Create a dedicated GPG keyring environment for boot.  
+2. Generate a LUKS key file and assign it to a slot in your encrypted LUKS partition.  
+3. Encrypt the LUKS key file with your GPG private key.  
 4. Create and edit existing `initramdisk` hooks.  
-  *This is to include the required GPG and OpenPGP smartcard binaries to allow the user to decrypt the key.*
+5. *Optional-* Remove the option to unlock with a passphrase.
 
 
 ## 1. Prepare the GPG Keyring Environment for boot
-***Variables***
+***Variables***  
 These will depend on your environment. These need to be changed when following the guide.
 
 |Variable|Description|Example|
@@ -23,26 +21,31 @@ These will depend on your environment. These need to be changed when following t
 |`<KeyUUID>`|This is the ID for your key pair. This can be first or last name, or email assigned to your GPG key pair.|`john.smith@gmail.com`|
 |`<LUKSPartition>`|This is the location of the LUKS partition you want to unlock when booting. You can use `lsblk --fs` to check to see which partition it is.|`/dev/sda3`|
 
-1. **Jump into root:**  
+1. Jump into root:
+  >This will differ depending whether you have a dedicated root account set up or not.
+
 	`su -l`  
 	or  
 	`sudo -i`
 
-2. **Create the directory the keyring will be stored:**  
+2. Create the directory the keyring will be stored:  
 	`mkdir /etc/luks_gpg`  
 	`chown root:root /etc/luks_gpg`  
 	`chmod 700 /etc/luks_gpg`
 
-3. **Create the Private Key stubs in the keyring:**  
+3. Create the Private Key stubs in the keyring:  
 	`gpg --homedir /etc/luks_gpg --card-edit`
 
-4. **Import your Public Key into the keyring.**  
-	If a public key is already available, this can be imported normally. If not, this can be fetched using the OpenPGP smart card URL.  
+4. Import your Public Key into the keyring.  
+	>If a public key is already available, this can be imported normally. If not, this can be fetched using the OpenPGP smart card URL.
+
 	*If Public Key already available:*  
 	`gpg --homedir /etc/luks_gpg --import <PubKeyLocation>`  
+
 	*If not available, fetch from smart card URL:*  
 	`gpg --homedir /etc/luks_gpg --card-edit`  
 	`gpg/card> fetch`  
+  `gpg/card> quit`
 
 6. **Trust the imported Public Key:**  
 	`gpg --homedir /etc/luks_gpg --edit-key <KeyUUID>`
@@ -71,13 +74,17 @@ These will depend on your environment. These need to be changed when following t
 
 	Containing:
 
-		#!/bin/sh
+        #!/bin/sh
 
-		#Set the keyring environment
-		export GNUPGHOME=/etc/luks_gpg/
+        #Set the keyring environment
+        export GNUPGHOME=/etc/luks_gpg/
 
-		#Decrypt the keyfile
-		gpg --no-tty --decrypt /etc/luks_gpg/disk.key.gpg
+        #Request PIN from user
+        read -p "Enter PIN: " -s pincode
+
+        #Decrypt the keyfile
+        echo "$pincode" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 \
+        	--no-tty --decrypt /etc/luks_gpg/disk.key.gpg
 
 3.  Fix script permissions:  
 	`chown root:root /usr/local/sbin/luks_gpg_decrypt.sh`  
@@ -87,7 +94,7 @@ These will depend on your environment. These need to be changed when following t
 	`/usr/local/sbin/luks_gpg_decrypt.sh | cryptsetup --key-file - --test-passphrase open <LUKSPartition>`
 
 5. Update the `/etc/crypttab` hook by appending the following to the first line:  
-	`,keyscript=/usr/local/sbin/luks_gnupg_decrypt.sh`
+	   `,keyscript=/usr/local/sbin/luks_gnupg_decrypt.sh`
 
 
 ## 4. Create the `initramdisk` hook
@@ -134,11 +141,10 @@ These will depend on your environment. These need to be changed when following t
 
 4. Update `initramdisk`:  
 	`update-initramfs -u -k all`  
-	This should return no errors.  
+	>This should return no errors. If syntax errors persist and cannot be fixed, copy a hook in `/etc/initramfs-tools/hooks/` and edit that to match the hook above.
 
 5. Reboot.
-
-> **Note**
+> ***Boot errors***  
 > If there is an error in booting, you can fall back to the backup
 > initramdisk file and use the passphrase only:  
 > 1.  When you reach the bootloader, move the cursor to  `Debian GNU/Linux`  entry.
