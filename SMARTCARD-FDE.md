@@ -1,14 +1,14 @@
 # FDE using OpenPGP Smartcard
 
-How does this work?  
+#### How does this work?  
 Instead of using a passphrase on boot, we can use a LUKS key file encrypted with GPG to unlock the disk partition on your computer.
 
-**General setup process:**  
+#### General setup process:  
 1. Create a dedicated GPG keyring environment for boot.  
 2. Generate a LUKS key file and assign it to a slot in your encrypted LUKS partition.  
 3. Encrypt the LUKS key file with your GPG private key.  
 4. Create and edit existing `initramdisk` hooks.  
-5. *Optional-* Remove the option to unlock with a passphrase.
+5. *Optional- Remove the option to unlock with a passphrase.*
 
 
 ## 1. Prepare the GPG Keyring Environment for boot
@@ -24,9 +24,9 @@ These will depend on your environment. These need to be changed when following t
 1. Jump into root:
   >This will differ depending whether you have a dedicated root account set up or not.
 
-	`su -l`  
-	or  
-	`sudo -i`
+  `su -l`  
+  or  
+  `sudo -i`
 
 2. Create the directory the keyring will be stored:  
 	`mkdir /etc/luks_gpg`  
@@ -144,10 +144,13 @@ These will depend on your environment. These need to be changed when following t
 	>This should return no errors. If syntax errors persist and cannot be fixed, copy a hook in `/etc/initramfs-tools/hooks/` and edit that to match the hook above.
 
 5. Reboot.
-> ***Boot errors***  
-> If there is an error in booting, you can fall back to the backup
-> initramdisk file and use the passphrase only:  
-> 1.  When you reach the bootloader, move the cursor to  `Debian GNU/Linux`  entry.
-> 2.  Press  `e`.
-> 3.  Navigate to the  _initrd_  line, and rename filename to  `initrd.bak`.
-> 4.  Press  `Ctrl-x`  to boot using the backup initramdisk.
+    > ***Boot errors***  
+    > If there is an error in booting, you can fall back to the backup
+    > initramdisk file and use the passphrase only:  
+    > 1.  When you reach the bootloader, move the cursor to  `Debian GNU/Linux`  entry.
+    > 2.  Press  `e`.
+    > 3.  Navigate to the  _initrd_  line, and rename filename to  `initrd.bak`.
+    > 4.  Press  `Ctrl-x`  to boot using the backup initramdisk.
+
+5. Remove backup `initramdisk` file:  
+    `sudo rm /boot/initrd.bak`  
